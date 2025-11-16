@@ -26,7 +26,7 @@ export class AIService {
   async analyzeText(text: string): Promise<IAnalysisResult | null> {
     
     // Pega o modelo (flash é rápido e eficiente para isso)
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     // O prompt é a parte mais importante.
     // Damos a ele o texto e o formato exato que queremos de volta.
