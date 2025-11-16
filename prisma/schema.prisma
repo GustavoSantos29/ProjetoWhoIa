@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo do Usuário que usa o SaaS
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String 
+  
+  // Relacionamento: Um usuário pertence a uma empresa
+  companyId String? // O '?' torna o campo opcional
+  company   Company?  @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// Modelo da Empresa que está sendo monitorada
+model Company {
+  id        String    @id @default(uuid())
+  name      String
+  
+  // Relacionamento: Uma empresa pode ter vários usuários
+  users     User[]
+  
+  // Relacionamento: Uma empresa tem muitos pontos de dados
+  dataPoints DataPoint[]
+  
+  // Relacionamento: Uma empresa tem muitos relatórios gerados
+  reports    Report[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// Modelo de um dado bruto (uma reclamação, um elogio)
+model DataPoint {
+  id        String    @id @default(uuid())
+  source    String    // Ex: "ReclameAqui", "Twitter"
+  content   String    @db.Text // @db.Text é melhor para textos longos
+  author    String?
+  originalUrl String?   @db.Text
+  
+  // Dados da nossa IA
+  sentiment Sentiment  // POSITIVE, NEGATIVE, NEUTRAL
+  topics    Json?      // Ex: ["entrega", "atendimento"]
+  
+  // Relacionamento: Este dado pertence a uma empresa
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade) // Se deletar a empresa, deleta os dados
+
+  createdAt DateTime  @default(now())
+}
+
+// Um relatório consolidado para o dashboard
+model Report {
+  id          String   @id @default(uuid())
+  periodDays  Int      // Ex: 30 (dias)
+  summary     Json     // Ex: { total: 100, positive: 20, negative: 80 ... }
+  
+  // Relacionamento: Este relatório pertence a uma empresa
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  generatedAt DateTime @default(now())
+}
+
+// Enum para o Sentimento
+enum Sentiment {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}

@@ -1,0 +1,12 @@
+{
+ "compilerOptions": {
+    "target": "ES2022",              // Define para qual versão do JS o código será compilado
+    "module": "NodeNext",             // Usa o sistema de módulos moderno do Node
+    "rootDir": "./src",               // Onde nosso código TS vai ficar
+    "outDir": "./dist",               // Onde o código JS compilado vai parar
+    "esModuleInterop": true,          // Permite compatibilidade entre módulos
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,                   // A "regra de ouro" do TS, ativa checagens estritas
+    "skipLibCheck": true              // Pula a checagem de tipos em libs (mais rápido)
+  }
+}
