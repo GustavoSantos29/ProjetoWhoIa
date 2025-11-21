@@ -126,4 +126,53 @@ export class DashboardService {
       topics: topicsObject, // Ex: { "entrega": 10, "atendimento": 5 }
     };
   }
+
+  /**
+   * Busca o feed de dados paginado.
+   * @param userId - ID do usuário
+   * @param page - Número da página (começa em 1)
+   * @param limit - Quantos itens por página
+   * @param sentimentFilter - (Opcional) Filtrar por POSITIVE, NEGATIVE, etc.
+   */
+  async getFeed(userId: string, page: number = 1, limit: number = 10, sentimentFilter?: Sentiment) {
+    // 1. Verifica empresa
+    const company = await this.companyService.getByUserId(userId);
+    if (!company) {
+      throw new Error('Nenhuma empresa associada a este usuário.');
+    }
+
+    // 2. Calcula o "pulo" (offset) para a paginação
+    const skip = (page - 1) * limit;
+
+    // 3. Monta o filtro (where)
+    const whereClause = {
+      companyId: company.id,
+      ...(sentimentFilter ? { sentiment: sentimentFilter } : {}), // Se tiver filtro, adiciona
+    };
+
+    // 4. Executa duas queries em paralelo (performance)
+    const [data, total] = await prisma.$transaction([
+      // Query A: Busca os dados
+      prisma.dataPoint.findMany({
+        where: whereClause,
+        orderBy: { createdAt: 'desc' }, // Mais recentes primeiro
+        skip: skip,
+        take: limit,
+      }),
+      // Query B: Conta o total (para saber quantas páginas tem)
+      prisma.dataPoint.count({
+        where: whereClause,
+      }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+        limit,
+      },
+    };
+  }
 }

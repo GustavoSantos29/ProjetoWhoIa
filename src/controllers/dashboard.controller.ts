@@ -1,6 +1,7 @@
 // src/controllers/dashboard.controller.ts
 import { Request, Response } from 'express';
 import { DashboardService } from '../services/dashboard.service';
+import { Sentiment } from '@prisma/client';
 
 const dashboardService = new DashboardService();
 
@@ -55,6 +56,32 @@ export class DashboardController {
       }
       console.error(error);
       return res.status(500).json({ error: 'Erro interno ao buscar tópicos.' });
+    }
+  }
+
+  async getFeed(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado.' });
+      }
+
+      // Pega query params (ex: /feed?page=1&limit=10&sentiment=NEGATIVE)
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const sentiment = req.query.sentiment as Sentiment | undefined;
+
+      // Chama o serviço
+      const feed = await dashboardService.getFeed(userId, page, limit, sentiment);
+
+      return res.status(200).json(feed);
+
+    } catch (error: any) {
+      if (error.message === 'Nenhuma empresa associada a este usuário.') {
+        return res.status(404).json({ error: error.message });
+      }
+      console.error(error);
+      return res.status(500).json({ error: 'Erro interno ao buscar feed.' });
     }
   }
 }
