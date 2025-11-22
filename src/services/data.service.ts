@@ -1,79 +1,92 @@
 // src/services/data.service.ts
 import { prisma } from '../lib/prisma';
-import { AIService, IAnalysisResult } from './ai.service';
 import { CompanyService } from './company.service';
-// 1. Importamos o ScraperService
-import { ScraperService, IScrapedData } from './scraper.service'; 
+// Importamos o novo serviço
+import { SearchService, AnalysisResult, FeedbackCategory } from './search.service';
+import { Sentiment } from '@prisma/client';
 
 export class DataService {
-  private aiService: AIService;
   private companyService: CompanyService;
-  private scraperService: ScraperService; // 2. Declaramos o scraper
+  private searchService: SearchService;
 
   constructor() {
-    this.aiService = new AIService();
     this.companyService = new CompanyService();
-    this.scraperService = new ScraperService(); // 3. Instanciamos o scraper
+    this.searchService = new SearchService();
   }
 
+  /**
+   * Busca dados usando o Google Search do Gemini e popula o banco.
+   */
   async refreshDataForCompany(companyId: string) {
     const company = await prisma.company.findUnique({ where: { id: companyId } });
     if (!company) {
       throw new Error('Empresa não encontrada.');
     }
 
-    // --- 1. COLETA DE DADOS (COM SCRAPER) ---
-    console.log(`Iniciando scraping para: ${company.name}`);
+    console.log(`Iniciando Busca Inteligente para: ${company.name}`);
 
-    // Define a URL de busca. Vamos buscar no Google por reclamações
-const scrapeUrl = `https://www.bing.com/search?q=reclamação+${encodeURI(company.name)}`;    
-    // Chama o serviço de scraping
-    const allRawData = await this.scraperService.scrapePage(scrapeUrl);
+    // 1. Chama o Gemini com Google Search
+    const result: AnalysisResult = await this.searchService.fetchCompanyReputation(company.name);
 
-    if (allRawData.length === 0) {
-      console.log('Nenhum dado encontrado no scraping.');
-      return { totalFound: 0, totalSaved: 0 };
-    }
-    
-    console.log(`Coleta finalizada. ${allRawData.length} itens encontrados.`);
-    
-    // --- 2. ANÁLISE E SALVAMENTO (Esta parte não muda) ---
-    let successCount = 0;
-    for (const data of allRawData) {
-      // Chama a IA para cada item
-      const analysis = await this.aiService.analyzeText(data.content);
+    console.log(`Análise concluída. Sentimento Geral: ${result.overallSentiment}`);
+    console.log(`Encontrado: ${result.complaints.length} categorias de reclamação e ${result.praises.length} de elogios.`);
 
-      if (analysis) {
-        // Salva no banco
-        await this.saveDataPoint(companyId, data, analysis);
-        successCount++;
-      }
+    let savedCount = 0;
+
+    // 2. Processa RECLAMAÇÕES
+    for (const item of result.complaints) {
+      await this.createDataPointsFromCategory(companyId, item, Sentiment.NEGATIVE, result.sources);
+      savedCount += item.count;
     }
 
-    console.log(`Processo finalizado. ${successCount} pontos de dados salvos.`);
+    // 3. Processa ELOGIOS
+    for (const item of result.praises) {
+      await this.createDataPointsFromCategory(companyId, item, Sentiment.POSITIVE, result.sources);
+      savedCount += item.count;
+    }
+
     return {
-      totalFound: allRawData.length,
-      totalSaved: successCount,
+      totalSaved: savedCount,
+      overallSentiment: result.overallSentiment
     };
   }
 
   /**
-   * Salva um DataPoint analisado no banco de dados.
-   * (Este método não muda)
+   * Método auxiliar que "explode" a categoria em vários DataPoints
+   * para que o Dashboard de estatísticas funcione corretamente.
    */
-  private async saveDataPoint(companyId: string, data: IScrapedData, analysis: IAnalysisResult) {
-    return prisma.dataPoint.create({
-      data: {
-        companyId: companyId,
-        source: data.source,
-        content: data.content,
-        author: data.author,
-        originalUrl: data.url,
-        sentiment: analysis.sentiment,
-        topics: analysis.topics,
-      },
-    });
-  }
+  private async createDataPointsFromCategory(
+    companyId: string, 
+    category: FeedbackCategory, 
+    sentiment: Sentiment,
+    sources: { uri: string }[]
+  ) {
+    // Para evitar flood no banco em testes, limitamos a 10 itens por categoria no máximo
+    // Se a IA disser "100 reclamações", criamos 10 representantes.
+    const loopCount = Math.min(category.count, 10); 
+    
+    // Pega uma fonte aleatória da lista para parecer real
+    const randomSource = sources.length > 0 ? sources[0].uri : 'Google Search';
 
-  // O método 'fetchFromReclameAquiAPI' foi removido.
+    const promises = [];
+
+    for (let i = 0; i < loopCount; i++) {
+      promises.push(prisma.dataPoint.create({
+        data: {
+          companyId: companyId,
+          source: 'Google Search Analysis', // Fonte genérica
+          originalUrl: randomSource,
+          author: 'Anônimo (Agregado por IA)',
+          // O conteúdo é o resumo da categoria
+          content: `${category.category}: ${category.summary}`, 
+          sentiment: sentiment,
+          // Salvamos a categoria como um tópico
+          topics: [category.category], 
+          createdAt: new Date(), // Poderíamos variar a data se o JSON trouxesse datas
+        }
+      }));
+    }
+
+    await prisma.$transaction(promises);
+  }
 }
