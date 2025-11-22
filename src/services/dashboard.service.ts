@@ -134,36 +134,44 @@ export class DashboardService {
    * @param limit - Quantos itens por página
    * @param sentimentFilter - (Opcional) Filtrar por POSITIVE, NEGATIVE, etc.
    */
-  async getFeed(userId: string, page: number = 1, limit: number = 10, sentimentFilter?: Sentiment) {
-    // 1. Verifica empresa
+  async getFeed(
+    userId: string,
+    page: number = 1,
+    limit: number = 10,
+    sentimentFilter?: Sentiment
+  ) {
     const company = await this.companyService.getByUserId(userId);
-    if (!company) {
-      throw new Error('Nenhuma empresa associada a este usuário.');
-    }
+    if (!company) throw new Error("Nenhuma empresa associada a este usuário.");
 
-    // 2. Calcula o "pulo" (offset) para a paginação
     const skip = (page - 1) * limit;
 
-    // 3. Monta o filtro (where)
     const whereClause = {
       companyId: company.id,
-      ...(sentimentFilter ? { sentiment: sentimentFilter } : {}), // Se tiver filtro, adiciona
+      ...(sentimentFilter ? { sentiment: sentimentFilter } : {}),
     };
 
-    // 4. Executa duas queries em paralelo (performance)
-    const [data, total] = await prisma.$transaction([
-      // Query A: Busca os dados
+    const [data, totalGroups] = await prisma.$transaction([
+      // Query A: Busca os dados (Paginado e Distinto)
       prisma.dataPoint.findMany({
         where: whereClause,
-        orderBy: { createdAt: 'desc' }, // Mais recentes primeiro
+        distinct: ["content"],
+        orderBy: { createdAt: "desc" },
         skip: skip,
         take: limit,
       }),
-      // Query B: Conta o total (para saber quantas páginas tem)
-      prisma.dataPoint.count({
+
+      // Query B: Conta o total (Agrupado)
+      prisma.dataPoint.groupBy({
+        by: ["content"],
         where: whereClause,
+        // 👇 ADICIONE ISSO AQUI PARA CORRIGIR O ERRO
+        orderBy: {
+          content: "asc",
+        },
       }),
     ]);
+
+    const total = totalGroups.length;
 
     return {
       data,
