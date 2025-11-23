@@ -56,4 +56,27 @@ export class CompanyController {
       return res.status(500).json({ error: "Erro interno ao buscar empresa." });
     }
   }
+
+  //Rota para deletar a empresa do usuário logado
+  async deleteCompany(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado.' });
+      }
+
+      await companyService.delete(userId);
+
+      // 200 OK ou 204 No Content são padrões bons aqui
+      return res.status(200).json({ message: 'Empresa removida e dados limpos.' });
+
+    } catch (error: any) {
+      if (error.message === 'Usuário não possui empresa para excluir.') {
+        return res.status(404).json({ error: error.message });
+      }
+      console.error(error);
+      return res.status(500).json({ error: 'Erro interno ao excluir empresa.' });
+    }
+  }
 }

@@ -32,26 +32,26 @@ Todas as rotas abaixo (exceto login/register) precisam do Header de autorizaçã
 
 1. Criar Conta
 
-    Rota: POST /auth/register
+   Rota: POST /auth/register
 
-    Body:
-    JSON
+   Body:
+   JSON
 
-    {
-      "email": "dev@teste.com",
-      "password": "123"
-    }
+   {
+   "email": "dev@teste.com",
+   "password": "123"
+   }
 
 2. Fazer Login
 
-    Rota: POST /auth/login
+   Rota: POST /auth/login
 
-    Body: Mesma coisa do register.
+   Body: Mesma coisa do register.
 
-    Retorno: Guarda esse token com carinho, você vai usar em tudo.
-    JSON
+   Retorno: Guarda esse token com carinho, você vai usar em tudo.
+   JSON
 
-    { "token": "eyJhbGciOiJIUz..." }
+   { "token": "eyJhbGciOiJIUz..." }
 
 🏢 Setup Inicial
 
@@ -59,20 +59,20 @@ Assim que o usuário logar pela primeira vez, ele precisa criar a empresa que va
 
 3. Criar Empresa
 
-    Rota: POST /company
+   Rota: POST /company
 
-    Header: Bearer Token
+   Header: Bearer Token
 
-    Body:
-    JSON
+   Body:
+   JSON
 
-    { "name": "Nome da Empresa para Buscar no Bing" }
+   { "name": "Nome da Empresa para Buscar no Bing" }
 
 4. Ver minha Empresa
 
-    Rota: GET /company/me
+   Rota: GET /company/me
 
-    Retorno: Dados da empresa atrelada ao usuário.
+   Retorno: Dados da empresa atrelada ao usuário.
 
 🧠 O Motor (Scraper + IA)
 
@@ -80,22 +80,22 @@ Aqui é onde a mágica acontece. Aviso: Essa rota é lenta!
 
 5. Disparar Atualização
 
-    Rota: POST /data/refresh
+   Rota: POST /data/refresh
 
-    O que ela faz: Vai no Bing, busca reclamações da empresa, passa pro Gemini analisar sentimento/tópicos e salva no banco.
+   O que ela faz: Vai no Bing, busca reclamações da empresa, passa pro Gemini analisar sentimento/tópicos e salva no banco.
 
-    Frontend: Coloca um Loading/Spinner nervoso aqui, porque pode levar uns 30 a 60 segundos.
+   Frontend: Coloca um Loading/Spinner nervoso aqui, porque pode levar uns 30 a 60 segundos.
 
-    Retorno:
-    JSON
+   Retorno:
+   JSON
 
-    { "totalFound": 10, "totalSaved": 10 }
+   { "totalFound": 10, "totalSaved": 10 }
 
 📊 Dashboard (Gráficos e KPIs)
 
 Essas rotas só retornam dados se o usuário já tiver rodado o /data/refresh antes.
 
-6. Cards de Estatísticas (KPIs)
+6.  Cards de Estatísticas (KPIs)
 
     Rota: GET /dashboard/stats
 
@@ -105,14 +105,14 @@ Essas rotas só retornam dados se o usuário já tiver rodado o /data/refresh an
     JSON
 
     {
-      "period": "30 dias",
-      "total": 15,
-      "positive": 5,
-      "negative": 10,
-      "neutral": 0
+    "period": "30 dias",
+    "total": 15,
+    "positive": 5,
+    "negative": 10,
+    "neutral": 0
     }
 
-7. Nuvem de Tópicos
+7.  Nuvem de Tópicos
 
     Rota: GET /dashboard/topics
 
@@ -122,14 +122,14 @@ Essas rotas só retornam dados se o usuário já tiver rodado o /data/refresh an
     JSON
 
     {
-      "topics": {
-        "entrega": 5,
-        "atendimento": 3,
-        "produto quebrado": 2
-      }
+    "topics": {
+    "entrega": 5,
+    "atendimento": 3,
+    "produto quebrado": 2
+    }
     }
 
-8. Feed de Reclamações (Lista)
+8.  Feed de Reclamações (Lista)
 
     Rota: GET /dashboard/feed
 
@@ -147,8 +147,20 @@ Essas rotas só retornam dados se o usuário já tiver rodado o /data/refresh an
     JSON
 
     {
-      "data": [ ...array de reclamações... ],
-      "meta": { "total": 50, "page": 1, "lastPage": 5 }
+    "data": [ ...array de reclamações... ],
+    "meta": { "total": 50, "page": 1, "lastPage": 5 }
+    }
+
+9.  Excluir empresa
+    Rota: DELETE /company
+
+    O que ela faz: Remove a empresa atrelada ao usuário cadastrado, também remove qualquer dado referente a essa empresa do banco de dados.
+
+    Retorno:
+    JSON
+
+    {
+    "Empresa removida com sucesso "
     }
 
 🆘 Tive um Erro, e agora? (Troubleshooting)
@@ -157,20 +169,20 @@ Se o back-end explodir na sua cara, provavelmente é um desses motivos:
 
 1. Erro 500 no /data/refresh (Timeout ou Playwright)
 
-    Causa: O scraper não conseguiu abrir o navegador ou o Bing bloqueou.
+   Causa: O scraper não conseguiu abrir o navegador ou o Bing bloqueou.
 
-    Solução: Tenta rodar de novo. Se persistir, avisa o Gustavo pra checar se o npx playwright install foi rodado no servidor.
+   Solução: Tenta rodar de novo. Se persistir, avisa o Gustavo pra checar se o npx playwright install foi rodado no servidor.
 
 2. Erro de API Key (Gemini)
 
-    Erro no log: API key not valid ou 404 Not Found.
+   Erro no log: API key not valid ou 404 Not Found.
 
-    Solução: A chave do Google Gemini no .env expirou ou está errada.
+   Solução: A chave do Google Gemini no .env expirou ou está errada.
 
 3. Erro "Cannot find name 'Sentiment'" ou erros de banco
 
-    Solução: Sempre que mexer no banco, tem que rodar npx prisma generate pra atualizar os tipos do TypeScript.
+   Solução: Sempre que mexer no banco, tem que rodar npx prisma generate pra atualizar os tipos do TypeScript.
 
 4. Token Inválido (401 Unauthorized)
 
-    Solução: O token JWT expira em 1 dia. Se der erro 401, faz logout no front e manda o usuário logar de novo.
+   Solução: O token JWT expira em 1 dia. Se der erro 401, faz logout no front e manda o usuário logar de novo.

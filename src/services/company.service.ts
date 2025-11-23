@@ -66,4 +66,36 @@ export class CompanyService {
 
     return user.company;
   }
+
+  //Deleta uma empresa associada a um usuário
+  async delete(userId: string) {
+    // 1. Acha o usuário para pegar o ID da empresa
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { companyId: true }
+    });
+
+    if (!user || !user.companyId) {
+      throw new Error('Usuário não possui empresa para excluir.');
+    }
+
+    const companyId = user.companyId;
+
+    // 2. Transação Atômica (Segurança)
+    await prisma.$transaction([
+      // A. Primeiro: Desvincula o usuário (tira o ID da empresa dele)
+      prisma.user.update({
+        where: { id: userId },
+        data: { companyId: null }
+      }),
+      
+      // B. Segundo: Deleta a empresa
+      // (O banco vai apagar os DataPoints automaticamente por causa do Cascade)
+      prisma.company.delete({
+        where: { id: companyId }
+      })
+    ]);
+
+    return { message: "Empresa excluída com sucesso." };
+  }
 }

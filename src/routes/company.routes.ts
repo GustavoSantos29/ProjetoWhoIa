@@ -21,4 +21,7 @@ companyRouter.post('/', companyController.createCompany);
 // Buscar a empresa do usuário logado
 companyRouter.get('/me', companyController.getMyCompany);
 
+// DELETE /company
+companyRouter.delete('/', companyController.deleteCompany);
+
 export { companyRouter };
