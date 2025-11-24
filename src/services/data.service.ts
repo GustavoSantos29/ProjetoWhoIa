@@ -1,12 +1,7 @@
 // src/services/data.service.ts
 import { prisma } from "../lib/prisma";
 import { CompanyService } from "./company.service";
-// Importamos o novo serviço
-import {
-  SearchService,
-  AnalysisResult,
-  FeedbackCategory,
-} from "./search.service";
+import { SearchService, AnalysisResult, FeedbackItem } from "./search.service"; // Importar novas interfaces
 import { Sentiment } from "@prisma/client";
 
 export class DataService {
@@ -18,103 +13,54 @@ export class DataService {
     this.searchService = new SearchService();
   }
 
-  /**
-   * Busca dados usando o Google Search do Gemini e popula o banco.
-   */
   async refreshDataForCompany(companyId: string) {
     const company = await prisma.company.findUnique({
       where: { id: companyId },
     });
-    if (!company) {
-      throw new Error("Empresa não encontrada.");
-    }
+    if (!company) throw new Error("Empresa não encontrada.");
 
-    console.log(`Iniciando Busca Inteligente para: ${company.name}`);
+    console.log(`Iniciando Busca Real para: ${company.name}`);
 
-    // 1. Chama o Gemini com Google Search
+    // 1. Busca os dados reais (sem agrupamento)
     const result: AnalysisResult =
       await this.searchService.fetchCompanyReputation(company.name);
 
-    console.log(
-      `Análise concluída. Sentimento Geral: ${result.overallSentiment}`
-    );
-    console.log(
-      `Encontrado: ${result.complaints.length} categorias de reclamação e ${result.praises.length} de elogios.`
-    );
+    console.log(`Encontrados ${result.items.length} reviews reais.`);
 
     let savedCount = 0;
 
-    // 2. Processa RECLAMAÇÕES
-    for (const item of result.complaints) {
-      await this.createDataPointsFromCategory(
-        companyId,
-        item,
-        Sentiment.NEGATIVE,
-        result.sources
-      );
-      savedCount += item.count;
-    }
+    // 2. Salva cada item real no banco (SEM LOOP DE MULTIPLICAÇÃO)
+    for (const item of result.items) {
+      // Define sentimento baseado no tipo que a IA retornou
+      let sentiment: Sentiment = Sentiment.NEUTRAL;
+      if (item.type === "COMPLAINT") sentiment = Sentiment.NEGATIVE;
+      if (item.type === "PRAISE") sentiment = Sentiment.POSITIVE;
 
-    // 3. Processa ELOGIOS
-    for (const item of result.praises) {
-      await this.createDataPointsFromCategory(
-        companyId,
-        item,
-        Sentiment.POSITIVE,
-        result.sources
-      );
-      savedCount += item.count;
+      // Define título (pegamos os primeiros 40 caracteres ou o texto todo)
+      const title =
+        item.text.length > 50 ? item.text.substring(0, 47) + "..." : item.text;
+
+      // Salva 1 pra 1
+      await prisma.dataPoint.create({
+        data: {
+          companyId: companyId,
+          source: item.source || "Google Search",
+          originalUrl: "https://google.com", // A IA nem sempre retorna URL exata pra cada item, usamos genérico ou tentamos extrair
+          author: "Usuário da Web",
+          title: title,
+          content: item.text, // O texto real da reclamação
+          sentiment: sentiment,
+          topics: [], // Podemos deixar vazio ou pedir pra IA extrair tópicos depois
+          createdAt: new Date(),
+        },
+      });
+
+      savedCount++;
     }
 
     return {
       totalSaved: savedCount,
       overallSentiment: result.overallSentiment,
     };
-  }
-
-  /**
-   * Método auxiliar que "explode" a categoria em vários DataPoints
-   * para que o Dashboard de estatísticas funcione corretamente.
-   */
-  private async createDataPointsFromCategory(
-    companyId: string,
-    category: FeedbackCategory,
-    sentiment: Sentiment,
-    sources: { uri: string }[]
-  ) {
-    // Para evitar flood no banco em testes, limitamos a 10 itens por categoria no máximo
-    // Se a IA disser "100 reclamações", criamos 10 representantes.
-    const loopCount = Math.min(category.count, 10);
-
-    // Pega uma fonte aleatória da lista para parecer real
-    const randomSource = sources.length > 0 ? sources[0].uri : "Google Search";
-
-    const promises = [];
-
-    for (let i = 0; i < loopCount; i++) {
-      promises.push(
-        prisma.dataPoint.create({
-          data: {
-            companyId: companyId,
-            source: "Google Search Analysis", // Fonte genérica
-            originalUrl: randomSource,
-            author: "Anônimo (Agregado por IA)",
-            // O conteúdo é o resumo da categoria
-            // content: `${category.category}: ${category.summary}`,
-            sentiment: sentiment,
-            // ⭐ MUDANÇA 1: Usar a categoria como Título
-            title: category.category,
-
-            // ⭐ MUDANÇA 2: Limpar o conteúdo (tirar a repetição da categoria)
-            content: category.summary,
-            // Salvamos a categoria como um tópico
-            topics: [category.category],
-            createdAt: new Date(), // Poderíamos variar a data se o JSON trouxesse datas
-          },
-        })
-      );
-    }
-
-    await prisma.$transaction(promises);
   }
 }

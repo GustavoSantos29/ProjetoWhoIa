@@ -1,25 +1,24 @@
 // src/services/search.service.ts
 import { GoogleGenAI } from "@google/genai";
 
-export interface FeedbackCategory {
-  category: string;
-  count: number;
-  summary: string;
-  dates?: string[];
+// Nova interface focada em ITENS individuais, não categorias
+export interface FeedbackItem {
+  text: string;
+  source: string;
+  date?: string;
+  type: "COMPLAINT" | "PRAISE";
 }
 
 export interface AnalysisResult {
-  praises: FeedbackCategory[];
-  complaints: FeedbackCategory[];
-  overallSentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
-  sources: { uri: string; title: string }[];
+  items: FeedbackItem[];
+  overallSentiment: "POSITIVE" | "NEUTRAL" | "NEGATIVE";
 }
 
 const filterMap: { [key: string]: string } = {
   all_time: "todos os tempos",
   last_6_months: "últimos 6 meses",
   last_30_days: "últimos 30 dias",
-  last_7_days: "última semana"
+  last_7_days: "última semana",
 };
 
 export class SearchService {
@@ -27,82 +26,81 @@ export class SearchService {
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY não configurada.");
-    }
+    if (!apiKey) throw new Error("GEMINI_API_KEY não configurada.");
     this.ai = new GoogleGenAI({ apiKey: apiKey });
   }
 
-  async fetchCompanyReputation(companyName: string, filter: string = 'last_30_days'): Promise<AnalysisResult> {
+  async fetchCompanyReputation(
+    companyName: string,
+    filter: string = "last_30_days"
+  ): Promise<AnalysisResult> {
     const timePeriod = filterMap[filter] || "últimos 30 dias";
 
     const prompt = `
-      Você é um analista de dados especialista em reputação corporativa.
+      ATENÇÃO: Você é um robô de extração de dados. Você NÃO conversa. Você apenas cospe JSON.
+      
+      TAREFA:
+      Pesquise no Google sobre a empresa "${companyName}" no período de "${timePeriod}".
+      Procure especificamente por títulos de reclamações no Reclame Aqui, tweets, comentários ou reviews reais.
       
       OBJETIVO:
-      Realize uma pesquisa no Google usando a ferramenta disponível sobre a empresa "${companyName}", focando em reclamações (Reclame Aqui) e feedbacks recentes no período de "${timePeriod}".
+      Extraia o máximo possível de itens individuais e distintos. Tente encontrar entre 15 a 30 itens reais.
+      NÃO AGRUPE. NÃO RESUMA. Se encontrar 10 reclamações sobre entrega, liste as 10 separadamente com seus textos originais.
 
-      SAÍDA OBRIGATÓRIA:
-      Retorne APENAS um objeto JSON válido. Não inclua markdown, não inclua explicações antes ou depois. Apenas o JSON cru.
-      
-      ESTRUTURA DO JSON:
+      SAÍDA JSON OBRIGATÓRIA:
       {
-        "praises": [
-          { "category": "Resumo curto da categoria", "count": (estimativa numérica), "summary": "Resumo do elogio." }
+        "items": [
+          { 
+            "text": "Texto real da reclamação ou elogio...", 
+            "source": "Nome do site...",
+            "type": "COMPLAINT" ou "PRAISE"
+          }
         ],
-        "complaints": [
-          { "category": "Resumo curto da categoria", "count": (estimativa numérica), "summary": "Resumo da reclamação.", "dates": ["Mês/Ano"] }
-        ],
-        "overallSentiment": "POSITIVE" | "NEUTRAL" | "NEGATIVE"
+        "overallSentiment": "POSITIVE", "NEGATIVE" ou "NEUTRAL"
       }
     `;
 
     try {
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-pro', // Ou 'gemini-1.5-pro-002' se este falhar
-        contents: { role: 'user', parts: [{ text: prompt }] },
+        model: "gemini-2.5-pro", // Mantido o modelo que você pediu
+        contents: { role: "user", parts: [{ text: prompt }] },
         config: {
-          tools: [{ googleSearch: {} }], // Mantemos a ferramenta de busca
-          // responseMimeType: 'application/json', // <--- REMOVIDO (Causava o erro)
+          tools: [{ googleSearch: {} }],
         },
       });
 
-      // 1. Pegamos o texto da resposta
-      let jsonText = response.text || "{}";
-      
-      // 2. LIMPEZA MANUAL: Removemos blocos de código markdown (```json ... ```)
-      // O modelo costuma mandar isso quando usa ferramentas.
-      jsonText = jsonText
-        .replace(/```json/g, '')
-        .replace(/```/g, '')
-        .trim();
+      // 1. Pega o texto bruto (que pode vir com conversa da IA)
+      const rawText = response.text || "{}";
 
-      // 3. Parse do JSON
-      const parsedData = JSON.parse(jsonText);
-      
-      // 4. Extração das Fontes (Grounding)
-      const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-      const sources = groundingChunks
-        .map((chunk: any) => ({
-          uri: chunk.web?.uri || '',
-          title: chunk.web?.title || 'Fonte Google'
-        }))
-        .filter((s: any) => s.uri);
+      // 2. ⭐ A CORREÇÃO (Pinça Cirúrgica) ⭐
+      // Em vez de só limpar markdown, procuramos onde o JSON começa e termina.
+      const firstBrace = rawText.indexOf("{");
+      const lastBrace = rawText.lastIndexOf("}");
 
-      // Remove duplicatas
-      const uniqueSources = Array.from(new Map(sources.map((item: any) => [item.uri, item])).values());
-      
+      // Se não achar chaves, significa que a IA não mandou JSON nenhum
+      if (firstBrace === -1 || lastBrace === -1) {
+        console.warn(
+          "A IA não retornou um JSON válido. Resposta bruta:",
+          rawText.substring(0, 100)
+        );
+        // Retornamos vazio para não quebrar o backend
+        return { items: [], overallSentiment: "NEUTRAL" };
+      }
+
+      // Corta exatamente do primeiro '{' até o último '}'
+      const jsonClean = rawText.substring(firstBrace, lastBrace + 1);
+
+      // Agora o parse é seguro
+      const parsedData = JSON.parse(jsonClean);
+
       return {
-        praises: parsedData.praises || [],
-        complaints: parsedData.complaints || [],
-        overallSentiment: parsedData.overallSentiment || 'NEUTRAL',
-        sources: uniqueSources as any
+        items: parsedData.items || [],
+        overallSentiment: parsedData.overallSentiment || "NEUTRAL",
       };
-
-    } catch (error) {
-      console.error("Erro na busca com Gemini:", error);
-      // Dica: Se der erro de JSON parse, verifique o console para ver o que a IA retornou
-      throw new Error("Falha ao buscar reputação com IA.");
+    } catch (error: any) {
+      console.error("Erro na busca com Gemini:", error.message);
+      // Retorna vazio em caso de erro grave para manter o sistema de pé
+      return { items: [], overallSentiment: "NEUTRAL" };
     }
   }
 }
