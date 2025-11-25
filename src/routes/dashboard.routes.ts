@@ -19,4 +19,7 @@ dashboardRouter.get('/topics', dashboardController.getTopics);
 // GET /dashboard/feed ( essa rota pode conter paginação "feed?page=1&limit=5" ou filtro "feed?sentiment=NEGATIVE")
 dashboardRouter.get('/feed', dashboardController.getFeed);
 
+// GET /dashboard/report 
+dashboardRouter.get('/report', dashboardController.getReport);
+
 export { dashboardRouter };

@@ -183,4 +183,20 @@ export class DashboardService {
       },
     };
   }
+
+  /**
+   * Busca o relatório de inteligência mais recente.
+   */
+  async getLatestReport(userId: string) {
+    const company = await this.companyService.getByUserId(userId);
+    if (!company) throw new Error('Empresa não encontrada.');
+
+    // Busca o último relatório criado
+    const report = await prisma.report.findFirst({
+      where: { companyId: company.id },
+      orderBy: { generatedAt: 'desc' } // O mais novo
+    });
+
+    return report;
+  }
 }

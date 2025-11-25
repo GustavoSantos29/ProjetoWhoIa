@@ -1,8 +1,7 @@
-// src/services/data.service.ts
-import { prisma } from "../lib/prisma";
-import { CompanyService } from "./company.service";
-import { SearchService, AnalysisResult, FeedbackItem } from "./search.service"; // Importar novas interfaces
-import { Sentiment } from "@prisma/client";
+import { prisma } from '../lib/prisma';
+import { CompanyService } from './company.service';
+import { SearchService, AnalysisResult, FeedbackItem } from './search.service'; // Importar FeedbackItem
+import { Sentiment } from '@prisma/client';
 
 export class DataService {
   private companyService: CompanyService;
@@ -14,53 +13,70 @@ export class DataService {
   }
 
   async refreshDataForCompany(companyId: string) {
-    const company = await prisma.company.findUnique({
-      where: { id: companyId },
-    });
-    if (!company) throw new Error("Empresa não encontrada.");
+    const company = await prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new Error('Empresa não encontrada.');
 
-    console.log(`Iniciando Busca Real para: ${company.name}`);
+    console.log(`Iniciando Busca Inteligente para: ${company.name}`);
 
-    // 1. Busca os dados reais (sem agrupamento)
-    const result: AnalysisResult =
-      await this.searchService.fetchCompanyReputation(company.name);
+    // 1. Busca os dados (agora vem como lista de items)
+    const result: AnalysisResult = await this.searchService.fetchCompanyReputation(company.name);
 
-    console.log(`Encontrados ${result.items.length} reviews reais.`);
+    console.log(`Análise concluída. Sentimento: ${result.overallSentiment}`);
+    console.log(`Itens encontrados: ${result.items.length}`);
 
     let savedCount = 0;
+    const promises = [];
+    
+    // Pega uma fonte aleatória para usar (já que os items podem não ter URL individual confiável vindo do JSON)
+    const randomSource = result.sources.length > 0 ? result.sources[0].uri : 'Google Search';
 
-    // 2. Salva cada item real no banco (SEM LOOP DE MULTIPLICAÇÃO)
+    // 2. Processa a lista de ITENS
     for (const item of result.items) {
-      // Define sentimento baseado no tipo que a IA retornou
-      let sentiment: Sentiment = Sentiment.NEUTRAL;
-      if (item.type === "COMPLAINT") sentiment = Sentiment.NEGATIVE;
-      if (item.type === "PRAISE") sentiment = Sentiment.POSITIVE;
+      // Define sentimento baseado no tipo
+      const itemSentiment = item.type === 'PRAISE' ? Sentiment.POSITIVE : Sentiment.NEGATIVE;
 
-      // Define título (pegamos os primeiros 40 caracteres ou o texto todo)
-      const title =
-        item.text.length > 50 ? item.text.substring(0, 47) + "..." : item.text;
-
-      // Salva 1 pra 1
-      await prisma.dataPoint.create({
+      promises.push(prisma.dataPoint.create({
         data: {
           companyId: companyId,
-          source: item.source || "Google Search",
-          originalUrl: "https://google.com", // A IA nem sempre retorna URL exata pra cada item, usamos genérico ou tentamos extrair
-          author: "Usuário da Web",
-          title: title,
-          content: item.text, // O texto real da reclamação
-          sentiment: sentiment,
-          topics: [], // Podemos deixar vazio ou pedir pra IA extrair tópicos depois
+          source: item.source || 'Google Search',
+          originalUrl: randomSource,
+          author: 'Anônimo',
+          content: item.text, // Texto real
+          sentiment: itemSentiment,
+          topics: [], // Opcional: A IA nessa versão não categorizou tópicos, podemos deixar vazio ou pedir no futuro
           createdAt: new Date(),
-        },
-      });
-
+        }
+      }));
       savedCount++;
     }
+
+    // Executa tudo de uma vez
+    if (promises.length > 0) {
+      await prisma.$transaction(promises);
+    }
+
+    // 3. Salva o Relatório (Textos de Inteligência)
+    await prisma.report.create({
+      data: {
+        companyId: companyId,
+        periodDays: 30,
+        summary: {
+          totalCount: savedCount,
+          sentiment: result.overallSentiment,
+          // Contagem simples baseada no tipo
+          complaintsCount: result.items.filter(i => i.type === 'COMPLAINT').length,
+          praisesCount: result.items.filter(i => i.type === 'PRAISE').length
+        },
+        analysis: result.analysisText,
+        suggestion: result.suggestionText,
+      }
+    });
 
     return {
       totalSaved: savedCount,
       overallSentiment: result.overallSentiment,
+      analysis: result.analysisText,
+      suggestion: result.suggestionText
     };
   }
 }

@@ -84,4 +84,17 @@ export class DashboardController {
       return res.status(500).json({ error: 'Erro interno ao buscar feed.' });
     }
   }
+
+  async getReport(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: 'Auth required' });
+
+      const report = await dashboardService.getLatestReport(userId);
+      return res.status(200).json(report);
+    } catch (error: any) {
+      // ... tratamentos de erro padrão ...
+      return res.status(500).json({ error: 'Erro ao buscar relatório.' });
+    }
+  }
 }

@@ -64,6 +64,9 @@ model Report {
   periodDays  Int      // Ex: 30 (dias)
   summary     Json     // Ex: { total: 100, positive: 20, negative: 80 ... }
   
+
+analysis    String   @db.Text // Texto longo: "Pontos Fortes e Fracos"
+  suggestion  String   @db.Text // Texto longo: "Sugestão Estratégica"
   // Relacionamento: Este relatório pertence a uma empresa
   companyId   String
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
