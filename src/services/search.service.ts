@@ -133,7 +133,7 @@ export class SearchService {
   async getFreeSample(companyName: string): Promise<FreeSampleReview[]> {
     const prompt = `
       Atue como um motor de busca de reputação.
-      Encontre exatamente 10 avaliações ou reclamações recentes e relevantes sobre a empresa "${companyName}".
+      Encontre exatamente 10 avaliações ou reclamações recentes em português e relevantes sobre a empresa "${companyName}".
 
       SAÍDA OBRIGATÓRIA:
       Retorne APENAS um array JSON válido.
@@ -149,7 +149,7 @@ export class SearchService {
 
     try {
       const response = await this.ai.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         contents: { role: 'user', parts: [{ text: prompt }] },
         config: { tools: [{ googleSearch: {} }] },
       });

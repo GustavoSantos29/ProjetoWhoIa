@@ -5,10 +5,10 @@ import { companyRouter } from "./routes/company.routes";
 import { dataRouter } from "./routes/data.routes";
 import { dashboardRouter } from "./routes/dashboard.routes";
 import { sampleRouter } from "./routes/sample.routes";
-
+import cors from 'cors'; 
 
 const app = express();
-
+app.use(cors()); 
 const PORT = 3000;
 
 // Middleware para o Express entender JSON
