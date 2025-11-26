@@ -50,6 +50,7 @@ model DataPoint {
   // Dados da nossa IA
   sentiment Sentiment  // POSITIVE, NEGATIVE, NEUTRAL
   topics    Json?      // Ex: ["entrega", "atendimento"]
+  title     String?
   
   // Relacionamento: Este dado pertence a uma empresa
   companyId String

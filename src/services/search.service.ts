@@ -12,11 +12,11 @@ export interface FeedbackItem {
 // Interface do Resultado da Análise
 export interface AnalysisResult {
   // AQUI MUDOU: Em vez de categorias agrupadas, temos uma lista de itens reais
-  items: FeedbackItem[]; 
-  
-  overallSentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+  items: FeedbackItem[];
+
+  overallSentiment: "POSITIVE" | "NEUTRAL" | "NEGATIVE";
   sources: { uri: string; title: string }[];
-  
+
   // Mantemos os campos de inteligência que você pediu
   analysisText: string;
   suggestionText: string;
@@ -27,7 +27,7 @@ export interface FreeSampleReview {
   source: string;
   author: string;
   content: string;
-  sentiment: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+  sentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
 }
 
 const filterMap: { [key: string]: string } = {
@@ -105,24 +105,26 @@ export class SearchService {
       const parsedData = JSON.parse(jsonClean);
 
       // 3. Extração de Fontes (Grounding)
-      const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const groundingChunks =
+        response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
       const sources = groundingChunks
         .map((chunk: any) => ({
-          uri: chunk.web?.uri || '',
-          title: chunk.web?.title || 'Fonte Google'
+          uri: chunk.web?.uri || "",
+          title: chunk.web?.title || "Fonte Google",
         }))
         .filter((s: any) => s.uri);
-      
-      const uniqueSources = Array.from(new Map(sources.map((item: any) => [item.uri, item])).values());
+
+      const uniqueSources = Array.from(
+        new Map(sources.map((item: any) => [item.uri, item])).values()
+      );
 
       return {
         items: parsedData.items || [],
         overallSentiment: parsedData.overallSentiment || "NEUTRAL",
         analysisText: parsedData.analysisText || "Análise indisponível.",
         suggestionText: parsedData.suggestionText || "Sem sugestões.",
-        sources: uniqueSources as any
+        sources: uniqueSources as any,
       };
-
     } catch (error: any) {
       console.error("Erro na busca com Gemini:", error.message);
       throw new Error("Falha ao buscar reputação.");
@@ -149,13 +151,16 @@ export class SearchService {
 
     try {
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: { role: 'user', parts: [{ text: prompt }] },
+        model: "gemini-2.5-flash",
+        contents: { role: "user", parts: [{ text: prompt }] },
         config: { tools: [{ googleSearch: {} }] },
       });
 
       let jsonText = response.text || "[]";
-      jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+      jsonText = jsonText
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .trim();
 
       const reviews = JSON.parse(jsonText);
       return Array.isArray(reviews) ? reviews : [];
