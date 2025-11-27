@@ -53,31 +53,34 @@ export class SearchService {
     const timePeriod = filterMap[filter] || "últimos 30 dias";
 
     const prompt = `
-      Você é um especialista em reputação corporativa.
+      ATENÇÃO: Você NÃO é um jornalista. Você é um EXTRATOR DE CITAÇÕES.
       
       TAREFA:
-      Pesquise no Google sobre a empresa "${companyName}" no período de "${timePeriod}".
-      Foco em: Reclame Aqui, redes sociais e reviews.
+      Encontre opiniões PESSOAIS (em primeira pessoa) de usuários reais sobre a empresa "${companyName}" no período de "${timePeriod}".
       
-      SAÍDA OBRIGATÓRIA (JSON ÚNICO):
-      Retorne APENAS um objeto JSON válido contendo:
-      1. Uma lista de itens reais (reclamações ou elogios) encontrados (tente achar entre 10 a 20 itens).
-      2. Um sentimento geral.
-      3. Um texto de análise de erros/acertos (aprox 100 palavras).
-      4. Um texto de sugestão estratégica (aprox 80 palavras).
+      FONTES ALVO: Reclame Aqui, Consumidor.gov, Twitter (X), Comentários do Google Maps, Trustpilot, Reddit.
+      
+      REGRAS DE EXCLUSÃO (O QUE IGNORAR):
+      - IGNORE notícias de jornais ou sites de tecnologia (Ex: "Ubisoft anuncia...", "Ações sobem...").
+      - IGNORE relatórios financeiros.
+      - IGNORE artigos escritos por redatores.
+      
+      REGRAS DE INCLUSÃO (O QUE PEGAR):
+      - Pegue apenas textos onde o usuário fala da própria experiência (Ex: "Eu comprei e não chegou", "Odiei o atendimento", "Meu app travou").
+      - Tente encontrar entre 10 a 15 itens REAIS e DISTINTOS.
 
-      ESTRUTURA DO JSON:
+      SAÍDA OBRIGATÓRIA (JSON ÚNICO):
       {
         "items": [
           { 
-            "text": "Texto original da reclamação...", 
-            "source": "Fonte (ex: Reclame Aqui)",
-            "type": "COMPLAINT" (ou "PRAISE")
+            "text": "Citação direta do usuário (Ex: 'Fui mal atendido no chat ontem')", 
+            "source": "Fonte (Ex: Reclame Aqui)",
+            "type": "COMPLAINT" ou "PRAISE"
           }
         ],
         "overallSentiment": "NEGATIVE",
-        "analysisText": "Resumo dos erros e acertos...",
-        "suggestionText": "O WhoIA sugere..."
+        "analysisText": "Resumo técnico dos problemas relatados pelos usuários (aprox 100 palavras).",
+        "suggestionText": "Ação corretiva sugerida para a empresa (aprox 80 palavras)."
       }
     `;
 
